@@ -1,0 +1,91 @@
+{
+  "name": "Job Replies Tracker",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-email:triggerWatchNewEmails",
+      "version": 4,
+      "parameters": {
+        "__IMTCONN__": null,
+        "filterType": "gmailSearch",
+        "q": "{label:job-search-applications-ats label:job-search-applications label:job-search-recruiters label:job-search-interviews} -label:job-search-alerts -from:me -subject:\"we got it\" {unfortunately לצערנו \"לא נוכל\" \"לא נמצאה התאמה\" \"not to move forward\" \"not moving forward\" \"other candidates\" \"decided to move forward\" \"schedule a call\" \"your availability\" \"home assignment\" \"לתאם ראיון\" \"לתאם שיחה\" \"invite you\" \"next stage\"}",
+        "limit": 10,
+        "format": "full",
+        "markSeen": false
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0, "name": "Job search emails" }
+      }
+    },
+    {
+      "id": 4,
+      "module": "anthropic-claude:simpleTextPrompt",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "model": "claude-haiku-5-5",
+        "max_tokens": 20,
+        "textPrompt": "Classify this email that a job candidate received from an employer or recruiting system.\nAnswer with exactly one of these labels and nothing else:\nדחייה = the employer declines: not moving forward, chose other candidates, no match, position filled.\nצעד הבא = the employer wants to continue: interview or call invite, asks for availability, home assignment or test, asks for more details, or an offer.\nאישור קבלה = automatic acknowledgement that the application was received or is under review, no decision yet.\nאחר = anything else.\n\nSubject: {{1.subject}}\nFrom: {{1.fromName}} <{{1.fromEmail}}>\n\n{{substring(1.fullTextBody; 0; 3000)}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0, "name": "Classify reply (Claude)" }
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "filter": {
+        "name": "Skip acknowledgements",
+        "conditions": [
+          [
+            { "a": "{{trim(4.result)}}", "b": "אישור קבלה", "o": "text:notequal" }
+          ]
+        ]
+      },
+      "mapper": {
+        "from": "drive",
+        "mode": "select",
+        "spreadsheetId": "<YOUR_SPREADSHEET_ID>",
+        "sheetId": "Sheet1",
+        "includesHeaders": true,
+        "insertDataOption": "INSERT_ROWS",
+        "valueInputOption": "USER_ENTERED",
+        "insertUnformatted": false,
+        "useColumnHeaders": false,
+        "values": {
+          "0": "{{formatDate(1.internalDate; \"YYYY-MM-DD HH:mm\"; \"Asia/Jerusalem\")}}",
+          "1": "{{1.fromName}} <{{1.fromEmail}}>",
+          "2": "{{1.subject}}",
+          "3": "{{1.snippet}}",
+          "4": "https://mail.google.com/mail/u/0/#all/{{1.threadId}}",
+          "5": "{{trim(4.result)}}"
+        }
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0, "name": "Add to Job Replies" }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": { "orphans": [] },
+    "zone": "eu1.make.com"
+  }
+}

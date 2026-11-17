@@ -1,0 +1,66 @@
+{
+  "name": "Invoices Log",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-email:triggerWatchNewEmails",
+      "version": 4,
+      "parameters": {
+        "__IMTCONN__": null,
+        "filterType": "gmailSearch",
+        "q": "{חשבונית \"חשבונית מס\" קבלה invoice receipt} -from:me",
+        "limit": 20,
+        "format": "full",
+        "markSeen": false
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0, "name": "Invoice emails" }
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-sheets:addRow",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "from": "drive",
+        "mode": "select",
+        "spreadsheetId": "<YOUR_SPREADSHEET_ID>",
+        "sheetId": "Sheet1",
+        "includesHeaders": true,
+        "insertDataOption": "INSERT_ROWS",
+        "valueInputOption": "USER_ENTERED",
+        "insertUnformatted": false,
+        "useColumnHeaders": false,
+        "values": {
+          "0": "{{formatDate(1.internalDate; \"YYYY-MM-DD HH:mm\"; \"Asia/Jerusalem\")}}",
+          "1": "{{1.fromName}} <{{1.fromEmail}}>",
+          "2": "{{1.subject}}"
+        }
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0, "name": "Add to Invoices" }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": { "orphans": [] },
+    "zone": "eu1.make.com"
+  }
+}
