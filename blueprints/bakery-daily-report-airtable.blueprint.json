@@ -1,0 +1,274 @@
+{
+  "name": "Bakery Daily Report to Airtable",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": null,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0,
+          "name": "Branch report (webhook)"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "anthropic-claude:simpleTextPrompt",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "model": "claude-haiku-5-5",
+        "max_tokens": 1200,
+        "textPrompt": "You turn a free-text end-of-day sales report from a bakery branch manager into structured data. The report is usually in Hebrew.\n\nBranches (return the English name exactly): \"Tel Aviv - Florentin\" (פלורנטין), \"Tel Aviv - Dizengoff\" (דיזנגוף), \"Ramat Gan\" (רמת גן), \"Herzliya\" (הרצליה).\n\nProducts with unit price in ILS (return the English name exactly, use this price):\nBabka (בבקה) 42; Baguette (באגט) 14; Cappuccino (קפוצ'ינו) 14; Challah (חלה) 18; Cheese bourekas (בורקס גבינה) 10; Cheesecake slice (פרוסת עוגת גבינה) 22; Cinnamon roll (שנקי קינמון) 14; Cookies (bag) (עוגיות) 20; Croissant (קרואסון) 12; Espresso (אספרסו) 10; Fresh orange juice (מיץ תפוזים סחוט) 16; Hamantaschen (box) (אוזני המן) 28; Pita (pack of 6) (פיתות) 12; Potato bourekas (בורקס תפוחי אדמה) 9; Rugelach (box) (רוגלך) 32; Sourdough loaf (לחם מחמצת) 28; Spinach pastry (מאפה תרד) 11; Sufganiyah (סופגנייה) 8; Whole wheat loaf (לחם מלא) 24.\n\nReturn ONLY a JSON object, no code fences, no text before or after:\n\"valid\": false if the text is not a sales report or the branch cannot be identified, otherwise true.\n\"branch\": the English branch name.\n\"date\": the report date as YYYY-MM-DD. If the report does not say, use {{formatDate(now; \"YYYY-MM-DD\"; \"Asia/Jerusalem\")}}. \"אתמול\" means the day before that.\n\"orders\": number of customer orders/receipts if mentioned, otherwise 0.\n\"refunded\": total refunds in ILS if mentioned, otherwise 0.\n\"items\": array of {\"product\", \"units\", \"unit_price\", \"line_total\"} for every product sold, where line_total = units * unit_price. Merge the same product into one item. Plural, slang and typos still count (חלות = Challah, קרואסונים = Croissant).\n\"unrecognized\": array of the items in the report you could not match to a product (empty array if none).\n\"note\": one short Hebrew sentence summarizing the day for the owner.\n\nReport:\n{{1.report}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 0,
+          "name": "Parse report (Claude)"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "type": null
+      },
+      "mapper": {
+        "json": "{{trim(replace(replace(2.result; \"```json\"; \"\"); \"```\"; \"\"))}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 0,
+          "name": "Parse Claude JSON"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "module": "airtable:makeApiCall",
+      "version": 3,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "qs": [
+          {
+            "key": "filterByFormula",
+            "value": "{Key}='{{formatDate(addDays(parseDate(3.date; \"YYYY-MM-DD\"); 0 - parseNumber(formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"d\"))); \"YYYY-MM-DD\")}}|{{3.branch}}'"
+          },
+          {
+            "key": "maxRecords",
+            "value": "1"
+          }
+        ],
+        "url": "v0/<YOUR_BASE_ID>/tblSJMR5qHVXpvn72",
+        "method": "GET"
+      },
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": 0,
+          "name": "Find this week's row"
+        }
+      },
+      "filter": {
+        "name": "Valid report",
+        "conditions": [
+          [
+            {
+              "a": "{{3.valid}}",
+              "o": "boolean:equal",
+              "b": "true"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "module": "airtable:upsertRecord",
+      "version": 3,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "base": "<YOUR_BASE_ID>",
+        "table": "tblSJMR5qHVXpvn72",
+        "record": {
+          "fld15zKw5lNNQBO3G": "{{formatDate(addDays(parseDate(3.date; \"YYYY-MM-DD\"); 0 - parseNumber(formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"d\"))); \"YYYY-MM-DD\")}}",
+          "fld1HtFd8LPIyQHkZ": "{{ifempty(4.body.records[1].fields.Orders; 0) + 3.orders}}",
+          "fldCGTk283wHhTs19": "{{formatDate(addDays(parseDate(3.date; \"YYYY-MM-DD\"); 0 - parseNumber(formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"d\"))); \"YYYY-MM-DD\")}}|{{3.branch}}",
+          "fldVmmJb3xMb23b9z": "{{ifempty(4.body.records[1].fields.Refunded; 0) + 3.refunded}}",
+          "flda3VQJFjGKosdyu": [
+            "{{3.branch}}"
+          ],
+          "fldpbbVvb06J6rpSv": "{{ifempty(4.body.records[1].fields.Items; 0) + sum(map(3.items; \"units\"))}}",
+          "flds5KkLU2yAa3fJq": "{{ifempty(4.body.records[1].fields.Revenue; 0) + sum(map(3.items; \"line_total\"))}}"
+        },
+        "recordId": "{{4.body.records[1].id}}",
+        "typecast": true,
+        "useColumnId": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": 0,
+          "name": "Add to Weekly sales"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "module": "airtable:ActionCreateRecord",
+      "version": 3,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "base": "<YOUR_BASE_ID>",
+        "table": "tblqBzfHrYFk7cbbq",
+        "record": {
+          "fld57NVH1g0RwdmJL": "{{length(3.items)}}",
+          "fld873cJXcKVpijir": "{{length(3.items) + length(3.unrecognized)}}",
+          "fldL0XeHkRbpTCZU7": "{{length(3.unrecognized)}}",
+          "fldWMlXi89Rwtfc0T": "0",
+          "fldauFDpyrHipxSCW": "{{length(3.unrecognized) = 0}}",
+          "fldo6OLHRe2BDjwIk": "{{sum(map(3.items; \"line_total\"))}}",
+          "fldypbe6KIO9GtxkX": "Make | {{3.branch}} | {{3.date}}"
+        },
+        "typecast": true,
+        "useColumnId": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 1500,
+          "y": 0,
+          "name": "Log in Import runs"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "module": "gateway:WebhookRespond",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "body": "{\"saved\": true, \"branch\": \"{{3.branch}}\", \"date\": \"{{3.date}}\", \"products\": {{length(3.items)}}, \"units\": {{sum(map(3.items; \"units\"))}}, \"revenue\": {{sum(map(3.items; \"line_total\"))}}, \"unrecognized\": {{length(3.unrecognized)}}, \"note\": \"{{replace(3.note; \"/\\\"/g\"; \"''\")}}\"}",
+        "status": 200
+      },
+      "metadata": {
+        "designer": {
+          "x": 1800,
+          "y": 0,
+          "name": "Reply to manager"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "module": "builtin:BasicFeeder",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "array": "{{3.items}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 2100,
+          "y": 0,
+          "name": "Each product"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "module": "airtable:makeApiCall",
+      "version": 3,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "qs": [
+          {
+            "key": "filterByFormula",
+            "value": "{Key}='{{formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"YYYY-MM\")}}|{{8.product}}'"
+          },
+          {
+            "key": "maxRecords",
+            "value": "1"
+          }
+        ],
+        "url": "v0/<YOUR_BASE_ID>/tblycN6UFffOFyiWk",
+        "method": "GET"
+      },
+      "metadata": {
+        "designer": {
+          "x": 2400,
+          "y": 0,
+          "name": "Find this month's product row"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "module": "airtable:upsertRecord",
+      "version": 3,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "base": "<YOUR_BASE_ID>",
+        "table": "tblycN6UFffOFyiWk",
+        "record": {
+          "fldMrGU8ojK8xwHAb": "{{ifempty(9.body.records[1].fields.Revenue; 0) + 8.line_total}}",
+          "fldT5IDjopzKkjxUu": "{{formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"YYYY-MM\")}}-01",
+          "fldemvmift1HtkJa1": "{{ifempty(9.body.records[1].fields.Units; 0) + 8.units}}",
+          "fldu0TJtOzZl4ZzVt": [
+            "{{8.product}}"
+          ],
+          "fldy4nTZe419N0xqu": "{{formatDate(parseDate(3.date; \"YYYY-MM-DD\"); \"YYYY-MM\")}}|{{8.product}}"
+        },
+        "recordId": "{{9.body.records[1].id}}",
+        "typecast": true,
+        "useColumnId": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 2700,
+          "y": 0,
+          "name": "Add to Monthly product sales"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+}
