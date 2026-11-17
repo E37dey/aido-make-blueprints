@@ -1,0 +1,50 @@
+{
+  "source": "Make public template gallery, template 1686: Save new Gmail attachments to Google Drive (built by Make, not by me)",
+  "note": "Original module list as published. google-email:TriggerNewEmail v2 no longer exists in Make, so it could not be used as-is.",
+  "modules": [
+    {
+      "id": 4,
+      "module": "google-email:TriggerNewEmail",
+      "version": 2,
+      "root": "main",
+      "config": {
+        "parameters": {
+          "from": null,
+          "text": "",
+          "subject": "",
+          "markSeen": false,
+          "maxResults": 2,
+          "searchType": "simple"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "builtin:BasicFeeder",
+      "version": 1,
+      "follows": 4,
+      "config": {
+        "mapper": {
+          "array": "{{4.attachments}}"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "module": "google-drive:uploadAFile",
+      "version": 4,
+      "follows": 5,
+      "config": {
+        "mapper": {
+          "data": "{{5.data}}",
+          "select": "value",
+          "filename": "{{5.fileName}}"
+        }
+      }
+    }
+  ],
+  "scheduling": {
+    "type": "indefinitely",
+    "interval": 900
+  }
+}

@@ -35,6 +35,18 @@
 
 עלות: 14-18 credits לדוח. דוגמה: `samples/bakery-report-example.json`.
 
+## invoice-attachments-to-drive.blueprint.json (בונוס 2: אוטומציה של מישהו אחר)
+מקור: התבנית הציבורית של Make, "Save new Gmail attachments to Google Drive" (template 1686). את התבנית בנו ב-Make, לא אני. הגרסה המקורית, כפי שפורסמה, שמורה ב-`template-1686-original.json`.
+
+התבנית לא עבדה כמו שהיא, ולכן היו צריכים שני תיקונים:
+1. מודול ה-Gmail שלה, TriggerNewEmail v2, כבר לא קיים ב-Make. החלפתי אותו ב-Watch emails v4 עם חיפוש Gmail של מיילים עם קובץ מצורף שיש בהם חשבונית, קבלה, invoice או receipt.
+2. ה-Iterator של התבנית עבר על `{{4.attachments}}`, אבל המודול החדש לא מחזיר את הקבצים המצורפים. החלפתי אותו ב-List email attachments, שמחזיר כל קובץ בנפרד.
+
+מודול ההעלאה ל-Drive נשאר מהתבנית. הוספתי לו Filter של PDF ותמונות בלבד, ותאריך בתחילת שם הקובץ.
+
+נבדק ב-17.11.2026: 3 מיילים, 3 קובצי PDF של חשבוניות וקבלות נשמרו בתיקייה ב-Drive, 7 credits.
+היא משלימה את Invoices Log: הגיליון רושם שהגיעה חשבונית, ו-Drive שומר את הקובץ.
+
 ## job-replies-tracker.blueprint.json (3 רכיבים)
 1. Gmail - Watch emails: מיילים מתוויות חיפוש העבודה, סינון ראשוני לפי מילות מפתח.
 2. Claude: מסווג כל מייל: דחייה, צעד הבא, אישור קבלה, אחר.

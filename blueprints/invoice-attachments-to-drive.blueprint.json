@@ -1,0 +1,107 @@
+{
+  "name": "Invoice attachments to Drive (from Make template 1686)",
+  "flow": [
+    {
+      "id": 4,
+      "module": "google-email:triggerWatchNewEmails",
+      "version": 4,
+      "parameters": {
+        "__IMTCONN__": null,
+        "filterType": "gmailSearch",
+        "format": "full",
+        "q": "has:attachment {חשבונית \"חשבונית מס\" קבלה invoice receipt} -from:me",
+        "limit": 3,
+        "markSeen": false
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0,
+          "name": "Invoice emails with attachments"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "google-email:listEmailAttachments",
+      "version": 4,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "mapper": {
+        "messageId": "{{4.id}}",
+        "include": "attachment",
+        "returnAttachmentData": true
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 0,
+          "name": "List attachments (replaces template iterator)"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "module": "google-drive:uploadAFile",
+      "version": 4,
+      "parameters": {
+        "__IMTCONN__": null
+      },
+      "filter": {
+        "name": "PDF or image only",
+        "conditions": [
+          [
+            {
+              "a": "{{5.mimeType}}",
+              "o": "text:contain",
+              "b": "pdf"
+            }
+          ],
+          [
+            {
+              "a": "{{5.mimeType}}",
+              "o": "text:contain",
+              "b": "image"
+            }
+          ]
+        ]
+      },
+      "mapper": {
+        "select": "value",
+        "destination": "drive",
+        "folderId": "<YOUR_FOLDER_ID>",
+        "filename": "{{formatDate(4.internalDate; \"YYYY-MM-DD\")}} {{5.filename}}",
+        "data": "{{5.data}}",
+        "convert": false
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 0,
+          "name": "Upload to Drive (from template)"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+}
