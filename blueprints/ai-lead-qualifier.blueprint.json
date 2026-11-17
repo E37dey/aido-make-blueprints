@@ -1,0 +1,258 @@
+{
+  "name": "AI Lead Qualifier",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": null,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 0,
+          "name": "Lead form (webhook)"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "datastore:ExistRecord",
+      "version": 1,
+      "parameters": {
+        "datastore": null
+      },
+      "mapper": {
+        "key": "{{lower(trim(1.email))}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 0,
+          "name": "Returning lead?"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "anthropic-claude:simpleTextPrompt",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "model": "claude-haiku-5-5",
+        "max_tokens": 900,
+        "textPrompt": "You qualify inbound leads for First Article, a one-person Israeli studio run by Eiliya Nudelman. Services: AI implementation for small and mid-size businesses (workflow automations, AI agents, RAG over company documents), AEO (getting a business recommended by ChatGPT, Gemini and Google AI answers), and mechanical design / CAD drawings.\n\nRead the lead below and return ONLY a JSON object, no code fences, no text before or after, with exactly these keys:\n\"is_spam\": true if this is spam, a sales pitch to us, SEO offers, crypto, or meaningless text; otherwise false.\n\"service\": one of \"AI automation\", \"AI agent\", \"RAG\", \"AEO\", \"Mechanical design\", \"Other\".\n\"lead_score\": integer 0-100. Higher when the need is clear, fits our services, has a business context, a timeline or budget hint, and a real company.\n\"tier\": \"hot\" if lead_score >= 70, \"warm\" if 40-69, \"cold\" if below 40.\n\"urgency\": \"high\", \"medium\" or \"low\".\n\"language\": \"he\" or \"en\", the language the lead wrote in.\n\"summary\": one sentence in Hebrew: who they are and what they need.\n\"next_action\": one short Hebrew instruction for Eiliya (for example: call within 24 hours, ask for sample documents, decline politely).\n\"reply_subject\": a subject line for a reply email, in the lead's language.\n\"reply_body\": a short, warm, personal reply in the lead's language, signed \"Eiliya\" (or \"איליה\" in Hebrew). Refer to their specific need, ask 1-2 concrete questions that help scope the work, and suggest a 20-minute call. Never quote prices, never promise dates or results.\n\nReturning lead (contacted us before): {{2.exist}}\nName: {{1.name}}\nEmail: {{1.email}}\nCompany: {{1.company}}\nSource: {{1.source}}\nMessage:\n{{substring(1.message; 0; 3000)}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 600,
+          "y": 0,
+          "name": "Qualify lead (Claude)"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {
+        "type": null
+      },
+      "mapper": {
+        "json": "{{trim(replace(replace(3.result; \"```json\"; \"\"); \"```\"; \"\"))}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 900,
+          "y": 0,
+          "name": "Parse Claude JSON"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 1200,
+          "y": 0,
+          "name": "Router"
+        }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 6,
+              "module": "google-sheets:addRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": null
+              },
+              "filter": {
+                "name": "Not spam",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{4.is_spam}}",
+                      "o": "boolean:equal",
+                      "b": "false"
+                    }
+                  ]
+                ]
+              },
+              "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "<YOUR_SPREADSHEET_ID>",
+                "sheetId": "Sheet1",
+                "includesHeaders": true,
+                "insertDataOption": "INSERT_ROWS",
+                "valueInputOption": "USER_ENTERED",
+                "insertUnformatted": false,
+                "useColumnHeaders": false,
+                "values": {
+                  "0": "{{formatDate(now; \"YYYY-MM-DD HH:mm\"; \"Asia/Jerusalem\")}}",
+                  "1": "{{1.name}}",
+                  "2": "{{1.email}}",
+                  "3": "{{1.company}}",
+                  "4": "{{1.phone}}",
+                  "5": "{{1.source}}",
+                  "6": "{{substring(1.message; 0; 1000)}}",
+                  "7": "{{4.service}}",
+                  "8": "{{4.lead_score}}",
+                  "9": "{{4.tier}}",
+                  "10": "{{4.urgency}}",
+                  "11": "{{4.summary}}",
+                  "12": "{{4.next_action}}",
+                  "13": "{{if(2.exist; \"כן\"; \"לא\")}}"
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": -200,
+                  "name": "Add to Leads CRM"
+                }
+              }
+            },
+            {
+              "id": 7,
+              "module": "datastore:AddRecord",
+              "version": 1,
+              "parameters": {
+                "datastore": null
+              },
+              "mapper": {
+                "key": "{{lower(trim(1.email))}}",
+                "overwrite": true,
+                "data": {
+                  "name": "{{1.name}}",
+                  "lead_score": "{{4.lead_score}}",
+                  "tier": "{{4.tier}}",
+                  "last_seen": "{{formatDate(now; \"YYYY-MM-DD HH:mm\"; \"Asia/Jerusalem\")}}"
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1800,
+                  "y": -200,
+                  "name": "Remember lead"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 8,
+              "module": "google-email:createADraft",
+              "version": 4,
+              "parameters": {
+                "__IMTCONN__": null
+              },
+              "filter": {
+                "name": "Hot or warm, not spam",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{4.is_spam}}",
+                      "o": "boolean:equal",
+                      "b": "false"
+                    },
+                    {
+                      "a": "{{4.lead_score}}",
+                      "o": "number:greaterorequal",
+                      "b": "40"
+                    }
+                  ]
+                ]
+              },
+              "mapper": {
+                "to": [
+                  "{{1.email}}"
+                ],
+                "subject": "{{4.reply_subject}}",
+                "bodyType": "rawHtml",
+                "content": "<div dir=\"{{if(4.language = \"he\"; \"rtl\"; \"ltr\")}}\">{{replace(4.reply_body; \"/\n/g\"; \"<br>\")}}</div>"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": 0,
+                  "name": "Draft personal reply"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 9,
+              "module": "gateway:WebhookRespond",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "status": 200,
+                "body": "{\"received\": true, \"tier\": \"{{4.tier}}\"}"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": 200,
+                  "name": "Reply to form"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+}
